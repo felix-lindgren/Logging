@@ -25,6 +25,7 @@ def setup_logger(log_file, logger_name, level=logging.INFO):
     if log_dir != '': os.makedirs(log_dir, exist_ok=True)
 
     logger = logging.getLogger(logger_name)
+    logger.propagate = False
     logger.setLevel(level)
 
     file_handler = RotatingFileHandler(
