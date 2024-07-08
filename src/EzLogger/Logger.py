@@ -20,22 +20,25 @@ class ColoredFormatter(logging.Formatter):
             record.levelname = levelname_color
         return super().format(record)
 
-def setup_logger(log_file, logger_name, level=logging.INFO):
-    log_dir = os.path.dirname(log_file)
-    if log_dir != '': os.makedirs(log_dir, exist_ok=True)
-
+def setup_logger(logger_name, log_file=None, level=logging.INFO):
     logger = logging.getLogger(logger_name)
     logger.propagate = False
     logger.setLevel(level)
 
-    file_handler = RotatingFileHandler(
-        log_file, maxBytes=10 * 1024 * 1024, backupCount=5
-    )
-    file_handler.setLevel(level)
-    file_formatter = logging.Formatter(
-        "%(asctime)s - %(levelname)s - %(module)s - %(message)s"
-    )
-    file_handler.setFormatter(file_formatter)
+    if log_file is not None:
+        log_dir = os.path.dirname(log_file)
+        if log_dir != '': os.makedirs(log_dir, exist_ok=True)
+
+        file_handler = RotatingFileHandler(
+            log_file, maxBytes=10 * 1024 * 1024, backupCount=5
+        )
+        file_handler.setLevel(level)
+        file_formatter = logging.Formatter(
+            "%(asctime)s - %(levelname)s - %(module)s - %(message)s"
+        )
+        file_handler.setFormatter(file_formatter)
+        logger.addHandler(file_handler)
+
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(level)
@@ -44,9 +47,6 @@ def setup_logger(log_file, logger_name, level=logging.INFO):
     )
     console_handler.setFormatter(console_formatter)
 
-    logger.addHandler(file_handler)
     logger.addHandler(console_handler)
 
     return logger
-
-#logger = setup_logger("logs/name.log")
