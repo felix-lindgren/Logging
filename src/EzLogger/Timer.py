@@ -23,6 +23,17 @@ class Timer:
 
     @contextmanager
     def __call__(self, text="", enable=True, verbose=False, gpu=False):
+        stack = inspect.stack()
+        for i in range(len(stack)):
+            caller = stack[i].function
+            if caller in ['__call__', '__enter__', 'inner', '<module>']:
+                continue
+            if text == "":
+                text = caller
+            else:
+                text = caller + " -> " + text
+            break
+
         if not enable:
             yield
         else:
@@ -57,17 +68,14 @@ class Timer:
             print("No metrics to display.")
             return
         
-        # Determine the maximum text width to align columns neatly
         max_text_width = max(len(text) for text in self.metrics)
 
-        # Print headers with bold and underlined text
         headers = [
             f"{'Task':<{max_text_width}}", "N Runs", "Tot(ms)", "Avg(ms)","Med(ms)","Min(ms)","Max(ms)",
         ]
         header_text = "\t".join(f"\033[4m\033[1m{header}\033[0m" for header in headers)
         print(f"{header_text}")
         
-        # Define color codes for columns
         colors = [
             "\033[97m",  # White for task name
             "\033[93m",  # Bright Yellow for total runs
@@ -108,14 +116,24 @@ if __name__ == "__main__":
 
     @timer(text="f1")
     def f1():
-        time.sleep(1.5)
+        time.sleep(0.25)
 
     f1()
 
-    with timer(text="f2"):
-        time.sleep(1)
+    @timer(text="f2")
+    def f2():
+        time.sleep(0.25)
+        f1()
 
-    with timer(text="verylongtextdescriptionasdasd"):
-        time.sleep(1)
+    f2()
+
+    fn = lambda x: f2()
+    fn(1)
+
+    with timer(text="f3"):
+        time.sleep(0.25)
+
+    #with timer(text="verylongtextdescriptionasdasd"):
+    #    time.sleep(0.25)
 
     timer.print_metrics()
