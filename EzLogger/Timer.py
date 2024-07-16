@@ -104,7 +104,7 @@ class Timer:
                         indent += "├─" 
                     indent += "──" * (depth - 1)
                     
-                path_str = "->".join(current_path)
+                path_str = current_path[-1]#"->".join(current_path)
                 
                 print(f"{indent+path_str:<35} "
                     f"\033[93m{count:>8d}\033[0m "
