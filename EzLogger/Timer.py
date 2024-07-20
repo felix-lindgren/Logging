@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import statistics
 import inspect
 from collections import defaultdict
+import threading
 from threading import local
 
 try:
@@ -17,21 +18,30 @@ class Timer:
         if cls._instance is None:
             cls._instance = super(Timer, cls).__new__(cls)
             cls._instance.thread_local = local()
+            cls._instance.lock = threading.Lock()
+            cls._instance.metrics = defaultdict(lambda: {'timings': [], 'children': defaultdict(dict)})
+
 
             # Put any initialization here.
         return cls._instance
     
     def __init__(self):
+        self.ensure_initialized()
+
+    def ensure_initialized(self):
         if not hasattr(self.thread_local, 'initialized'):
             self.reset()
             self.thread_local.initialized = True
 
     def reset(self):
-        self.thread_local.metrics = defaultdict(lambda: {'timings': [], 'children': defaultdict(dict)})
         self.thread_local.current_path = []
+        with self.lock:
+            self.metrics.clear()
 
     @contextmanager
     def __call__(self, text="", enable=True, verbose=False, gpu=False):
+        self.ensure_initialized()  # Ensure initialization before each use
+
         stack = inspect.stack()
         caller = None
         for i in range(len(stack)):
@@ -62,23 +72,24 @@ class Timer:
         self.thread_local.current_path.pop()
 
     def update_metrics(self, elapsed):
-        current = self.thread_local.metrics
-        for i, part in enumerate(self.thread_local.current_path):
-            if part not in current:
-                current[part] = {'timings': [], 'children': defaultdict(dict)}
-            if i == len(self.thread_local.current_path) - 1:  # Only add timing to the last function in the stack
-                current[part]['timings'].append(elapsed)
-            current = current[part]['children']
+        with self.lock:
+            current = self.metrics
+            for i, part in enumerate(self.thread_local.current_path):
+                if part not in current:
+                    current[part] = {'timings': [], 'children': defaultdict(dict)}
+                if i == len(self.thread_local.current_path) - 1:  # Only add timing to the last function in the stack
+                    current[part]['timings'].append(elapsed)
+                current = current[part]['children']
 
     def print_metrics(self, node=None, depth=0, path=[]):
         n_break_lines = 100
         if node is None:
             print("\033[1m" + "-" * n_break_lines + "\033[0m")  # Bold line for separator
-            if not self.thread_local.metrics:
+            if not self.metrics:
                 print("No metrics to display.")
                 return
-            node = self.thread_local.metrics
-            self.max_depth = max(len(key.split(' -> ')) for key in self.flatten_dict(self.thread_local.metrics))
+            node = self.metrics
+            self.max_depth = max(len(key.split(' -> ')) for key in self.flatten_dict(self.metrics))
             
             # Print header
             print(f"{'Function':<35} {'Runs':>8} {'Total(ms)':>12} {'Self(ms)':>12} {'Avg(ms)':>12} {'Min(ms)':>12} {'Max(ms)':>12}")
@@ -138,23 +149,27 @@ class Timer:
 if __name__ == "__main__":
     timer = Timer()
 
-    @timer(text="f1")
-    def f1():
-        time.sleep(0.25)
+    with timer("Function 0"):
+        with timer(text="Function 1"):
+            time.sleep(0.1)
 
-    @timer(text="f2")
-    def f2():
-        time.sleep(0.25)
-        f1()
+    def worker_function():
+        # Your code here
+        with timer("Function A"):
+            time.sleep(0.1)
 
-    @timer(text="f3")
-    def f3():
-        time.sleep(0.25)
-        f2()
-        f1()
+    @timer(text="Function B")
+    def thread_function():
+        worker_function()
+        time.sleep(0.1)  # Simulate some work
 
-    f1()
-    f2()
-    f3()
+    threads = []
+    for _ in range(5):  # Create 5 threads
+        thread = threading.Thread(target=thread_function)
+        threads.append(thread)
+        thread.start()
+
+    for thread in threads:
+        thread.join()
 
     timer.print_metrics()
