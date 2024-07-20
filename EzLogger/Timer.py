@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import statistics
 import inspect
 from collections import defaultdict
+from threading import local
 
 try:
     import torch
@@ -15,15 +16,19 @@ class Timer:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(Timer, cls).__new__(cls)
+            cls._instance.thread_local = local()
+
             # Put any initialization here.
         return cls._instance
     
     def __init__(self):
-        self.reset()
+        if not hasattr(self.thread_local, 'initialized'):
+            self.reset()
+            self.thread_local.initialized = True
 
     def reset(self):
-        self.metrics = defaultdict(lambda: {'timings': [], 'children': defaultdict(dict)})
-        self.current_path = []
+        self.thread_local.metrics = defaultdict(lambda: {'timings': [], 'children': defaultdict(dict)})
+        self.thread_local.current_path = []
 
     @contextmanager
     def __call__(self, text="", enable=True, verbose=False, gpu=False):
@@ -37,7 +42,7 @@ class Timer:
         if text == "":
             text = caller
 
-        self.current_path.append(text)
+        self.thread_local.current_path.append(text)
 
         if not enable:
             yield
@@ -50,18 +55,18 @@ class Timer:
                 torch.cuda.synchronize()
             end = time.time()
             if verbose:
-                print(" -> ".join(self.current_path), f"{end - start:.4f} s")
+                print(" -> ".join(self.thread_local.current_path), f"{end - start:.4f} s")
             
             self.update_metrics(end - start)
 
-        self.current_path.pop()
+        self.thread_local.current_path.pop()
 
     def update_metrics(self, elapsed):
-        current = self.metrics
-        for i, part in enumerate(self.current_path):
+        current = self.thread_local.metrics
+        for i, part in enumerate(self.thread_local.current_path):
             if part not in current:
                 current[part] = {'timings': [], 'children': defaultdict(dict)}
-            if i == len(self.current_path) - 1:  # Only add timing to the last function in the stack
+            if i == len(self.thread_local.current_path) - 1:  # Only add timing to the last function in the stack
                 current[part]['timings'].append(elapsed)
             current = current[part]['children']
 
@@ -69,11 +74,11 @@ class Timer:
         n_break_lines = 100
         if node is None:
             print("\033[1m" + "-" * n_break_lines + "\033[0m")  # Bold line for separator
-            if not self.metrics:
+            if not self.thread_local.metrics:
                 print("No metrics to display.")
                 return
-            node = self.metrics
-            self.max_depth = max(len(key.split(' -> ')) for key in self.flatten_dict(self.metrics))
+            node = self.thread_local.metrics
+            self.max_depth = max(len(key.split(' -> ')) for key in self.flatten_dict(self.thread_local.metrics))
             
             # Print header
             print(f"{'Function':<35} {'Runs':>8} {'Total(ms)':>12} {'Self(ms)':>12} {'Avg(ms)':>12} {'Min(ms)':>12} {'Max(ms)':>12}")
