@@ -30,11 +30,10 @@ class Timer:
 
     def ensure_initialized(self):
         if not hasattr(self.thread_local, 'initialized'):
-            self.reset()
+            self.thread_local.current_path = []
             self.thread_local.initialized = True
 
     def reset(self):
-        self.thread_local.current_path = []
         with self.lock:
             self.metrics.clear()
 
