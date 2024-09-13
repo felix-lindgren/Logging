@@ -38,19 +38,8 @@ class Timer:
             self.metrics.clear()
 
     @contextmanager
-    def __call__(self, text="", enable=True, verbose=False, gpu=False):
+    def __call__(self, text, enable=True, verbose=False, gpu=False):
         self.ensure_initialized()  # Ensure initialization before each use
-
-        stack = inspect.stack()
-        caller = None
-        for i in range(len(stack)):
-            caller = stack[i].function
-            if caller not in ['__call__', '__enter__', 'inner', '<module>']:
-                break
-
-        if text == "":
-            text = caller
-
         self.thread_local.current_path.append(text)
 
         if not enable:
@@ -58,11 +47,11 @@ class Timer:
         else:
             if gpu:
                 torch.cuda.synchronize()
-            start = time.time()
+            start = time.perf_counter()
             yield
             if gpu:
                 torch.cuda.synchronize()
-            end = time.time()
+            end = time.perf_counter()
             if verbose:
                 print(" -> ".join(self.thread_local.current_path), f"{end - start:.4f} s")
             
@@ -83,7 +72,6 @@ class Timer:
     def print_metrics(self, node=None, depth=0, path=[]):
         n_break_lines = 100
         if node is None:
-            print("\033[1m" + "-" * n_break_lines + "\033[0m")  # Bold line for separator
             if not self.metrics:
                 print("No metrics to display.")
                 return
@@ -91,8 +79,10 @@ class Timer:
             self.max_depth = max(len(key.split(' -> ')) for key in self.flatten_dict(self.metrics))
             
             # Print header
-            print(f"{'Function':<35} {'Runs':>8} {'Total(ms)':>12} {'Self(ms)':>12} {'Avg(ms)':>12} {'Min(ms)':>12} {'Max(ms)':>12}")
-            print("-" * n_break_lines)
+            header = f"{'Function':<35} {'Runs':>8} {'Total(ms)':>12} {'Median(ms)':>12} {'Avg(ms)':>12} {'Min(ms)':>12} {'Max(ms)':>12}"
+            print("\033[1m" + "-" * len(header) + "\033[0m")  # Bold line for separator
+            print(header)
+            print("-" * len(header))
 
         for idx, (text, data) in enumerate(sorted(node.items(), key=lambda item: statistics.median(item[1]['timings']) if item[1]['timings'] else 0, reverse=True)):
             
@@ -124,7 +114,7 @@ class Timer:
                 print(f"{indent+path_str:<35} "
                     f"\033[93m{count:>8d}\033[0m "
                     f"\033[92m{total_time:>12.1f}\033[0m "
-                    f"\033[96m{self_time:>12.1f}\033[0m "
+                    f"\033[96m{median_time:>12.1f}\033[0m "
                     f"\033[94m{average_time:>12.1f}\033[0m "
                     f"\033[95m{min_time:>12.1f}\033[0m "
                     f"\033[91m{max_time:>12.1f}\033[0m")
