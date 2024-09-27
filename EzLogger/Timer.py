@@ -1,8 +1,9 @@
 import time
+
 from contextlib import contextmanager
-import statistics
-import inspect
 from collections import defaultdict
+
+import statistics
 import threading
 from threading import local
 

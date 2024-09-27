@@ -1,4 +1,4 @@
-
+# Original by https://x.com/qtnx_
 import logging
 import os
 from logging.handlers import RotatingFileHandler
