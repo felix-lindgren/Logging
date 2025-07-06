@@ -12,6 +12,8 @@ COLORS = {
     "RESET": "\033[0m",
 }
 
+APP_NAME = "app"
+
 class ColoredFormatter(logging.Formatter):
     def format(self, record):
         levelname = record.levelname
@@ -20,8 +22,13 @@ class ColoredFormatter(logging.Formatter):
             record.levelname = levelname_color
         return super().format(record)
 
-def setup_logger(logger_name, log_file=None, level=logging.INFO):
-    logger = logging.getLogger(logger_name)
+def setup_logger(logger_name=None, log_file=None, level=logging.INFO):
+    global APP_NAME
+    if logger_name:
+        logger = logging.getLogger(logger_name)
+        APP_NAME = logger_name 
+    else:
+        logger = logging.getLogger(APP_NAME) 
     logger.propagate = False
     logger.setLevel(level)
 
@@ -46,7 +53,10 @@ def setup_logger(logger_name, log_file=None, level=logging.INFO):
         "%(asctime)s - %(levelname)s - %(module)s - %(message)s"
     )
     console_handler.setFormatter(console_formatter)
-
     logger.addHandler(console_handler)
 
     return logger
+
+def get_logger(module_name: str = "main"):
+    return logging.getLogger(f"{APP_NAME}.{module_name}")
+
