@@ -80,7 +80,7 @@ class Timer:
             self.max_depth = max(len(key.split(' -> ')) for key in self.flatten_dict(self.metrics))
             
             # Print header
-            header = f"{'Function':<35} {'Runs':>8} {'Total(ms)':>12} {'Median(ms)':>12} {'Avg(ms)':>12} {'Min(ms)':>12} {'Max(ms)':>12}"
+            header = f"{'Function':<35} {'Runs':>8} {'Total(ms)':>12} {'Min(ms)':>12} {'P1(ms)':>12} {'Median(ms)':>12} {'P99(ms)':>12} {'Max(ms)':>12} {'Avg(ms)':>12}"
             print("\033[1m" + "-" * len(header) + "\033[0m")  # Bold line for separator
             print(header)
             print("-" * len(header))
@@ -97,28 +97,43 @@ class Timer:
                 median_time = statistics.median(timings) * 1000
                 min_time = min(timings) * 1000
                 max_time = max(timings) * 1000
-                
+
+                # Calculate percentiles (1st and 99th)
+                if count >= 2:
+                    try:
+                        percentiles = statistics.quantiles(timings, n=100)
+                        p1_time = percentiles[0] * 1000  # 1st percentile
+                        p99_time = percentiles[98] * 1000  # 99th percentile
+                    except statistics.StatisticsError:
+                        p1_time = min_time
+                        p99_time = max_time
+                else:
+                    p1_time = min_time
+                    p99_time = max_time
+
                 # Calculate self time (excluding children)
                 child_time = sum(child['timings'][0] for child in data['children'].values() if child['timings']) * 1000
                 self_time = total_time - child_time
-                
+
                 indent = ""
                 if depth > 0:
                     if idx == len(node) - 1 and depth == 1:
                         indent += "└─"
                     else:
-                        indent += "├─" 
+                        indent += "├─"
                     indent += "──" * (depth - 1)
-                    
+
                 path_str = current_path[-1]#"->".join(current_path)
-                
+
                 print(f"{indent+path_str:<35} "
                     f"\033[93m{count:>8d}\033[0m "
                     f"\033[92m{total_time:>12.1f}\033[0m "
-                    f"\033[96m{median_time:>12.1f}\033[0m "
-                    f"\033[94m{average_time:>12.1f}\033[0m "
                     f"\033[95m{min_time:>12.1f}\033[0m "
-                    f"\033[91m{max_time:>12.1f}\033[0m")
+                    f"\033[35m{p1_time:>12.1f}\033[0m "
+                    f"\033[96m{median_time:>12.1f}\033[0m "
+                    f"\033[35m{p99_time:>12.1f}\033[0m "
+                    f"\033[91m{max_time:>12.1f}\033[0m "
+                    f"\033[94m{average_time:>12.1f}\033[0m")
             if data['children']:
                 self.print_metrics(data['children'], depth + 1, current_path)
 
