@@ -23,8 +23,6 @@ class Timer:
             cls._instance.lock = threading.Lock()
             cls._instance.metrics = defaultdict(lambda: {'timings': [], 'children': defaultdict(dict)})
 
-
-            # Put any initialization here.
         return cls._instance
     
     def __init__(self):
@@ -81,7 +79,8 @@ class Timer:
             self.max_depth = max(len(key.split(' -> ')) for key in self.flatten_dict(self.metrics))
 
             # Get terminal width and calculate available space for function names
-            terminal_width = shutil.get_terminal_size().columns
+            terminal_width = shutil.get_terminal_size().columns - 3 # padding
+            print(terminal_width)
             # Fixed width for timing columns: 8 + 12*7 = 92, plus 7 spaces = 99 chars
             timing_columns_width = 99
             # Reserve at least 20 chars for function names, but use more if terminal is wide
