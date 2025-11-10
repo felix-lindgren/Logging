@@ -108,7 +108,7 @@ class Timer:
                 # Calculate percentiles (1st and 99th)
                 if count >= 2:
                     try:
-                        percentiles = statistics.quantiles(timings, n=100)
+                        percentiles = statistics.quantiles(timings, n=100, method='inclusive')
                         p1_time = percentiles[0] * 1000  # 1st percentile
                         p99_time = percentiles[98] * 1000  # 99th percentile
                     except statistics.StatisticsError:
