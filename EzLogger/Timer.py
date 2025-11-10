@@ -1,4 +1,5 @@
 import time
+import shutil
 
 from contextlib import contextmanager
 from collections import defaultdict
@@ -78,9 +79,16 @@ class Timer:
                 return
             node = self.metrics
             self.max_depth = max(len(key.split(' -> ')) for key in self.flatten_dict(self.metrics))
-            
+
+            # Get terminal width and calculate available space for function names
+            terminal_width = shutil.get_terminal_size().columns
+            # Fixed width for timing columns: 8 + 12*7 = 92, plus 7 spaces = 99 chars
+            timing_columns_width = 99
+            # Reserve at least 20 chars for function names, but use more if terminal is wide
+            self.max_function_width = max(20, terminal_width - timing_columns_width)
+
             # Print header
-            header = f"{'Function':<35} {'Runs':>8} {'Total(ms)':>12} {'Min(ms)':>12} {'P1(ms)':>12} {'Median(ms)':>12} {'P99(ms)':>12} {'Max(ms)':>12} {'Avg(ms)':>12}"
+            header = f"{'Function':<{self.max_function_width}} {'Runs':>8} {'Total(ms)':>12} {'Min(ms)':>12} {'P1(ms)':>12} {'Median(ms)':>12} {'P99(ms)':>12} {'Max(ms)':>12} {'Avg(ms)':>12}"
             print("\033[1m" + "-" * len(header) + "\033[0m")  # Bold line for separator
             print(header)
             print("-" * len(header))
@@ -124,8 +132,14 @@ class Timer:
                     indent += "──" * (depth - 1)
 
                 path_str = current_path[-1]#"->".join(current_path)
+                full_name = indent + path_str
 
-                print(f"{indent+path_str:<35} "
+                # Truncate function name if it exceeds available width
+                if len(full_name) > self.max_function_width:
+                    # Leave room for "..." at the end
+                    full_name = full_name[:self.max_function_width - 3] + "..."
+
+                print(f"{full_name:<{self.max_function_width}} "
                     f"\033[93m{count:>8d}\033[0m "
                     f"\033[92m{total_time:>12.1f}\033[0m "
                     f"\033[95m{min_time:>12.1f}\033[0m "
