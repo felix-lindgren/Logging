@@ -15,17 +15,19 @@ except ImportError:
 
 class Timer:
     _instance = None
-    
-    def __new__(cls):
+
+    def __new__(cls, categories=None):
         if cls._instance is None:
             cls._instance = super(Timer, cls).__new__(cls)
             cls._instance.thread_local = local()
             cls._instance.lock = threading.Lock()
             cls._instance.metrics = defaultdict(lambda: {'timings': [], 'children': defaultdict(dict)})
+            # Default categories: current ones minus min and max
+            cls._instance.categories = categories if categories is not None else ['runs', 'total', 'p1', 'median', 'p99', 'avg']
 
         return cls._instance
-    
-    def __init__(self):
+
+    def __init__(self, categories=None):
         self.ensure_initialized()
 
     def ensure_initialized(self):
@@ -78,26 +80,55 @@ class Timer:
             node = self.metrics
             self.max_depth = max(len(key.split(' -> ')) for key in self.flatten_dict(self.metrics))
 
+            # Category display names
+            category_names = {
+                'runs': 'Runs',
+                'total': 'Total(ms)',
+                'min': 'Min(ms)',
+                'p1': 'P1(ms)',
+                'median': 'Median(ms)',
+                'p99': 'P99(ms)',
+                'max': 'Max(ms)',
+                'avg': 'Avg(ms)'
+            }
+
+            # Category widths
+            category_widths = {
+                'runs': 8,
+                'total': 12,
+                'min': 12,
+                'p1': 12,
+                'median': 12,
+                'p99': 12,
+                'max': 12,
+                'avg': 12
+            }
+
             # Get terminal width and calculate available space for function names
-            terminal_width = shutil.get_terminal_size().columns - 3 # padding
+            terminal_width = shutil.get_terminal_size().columns - 3  # padding
             print(terminal_width)
-            # Fixed width for timing columns: 8 + 12*7 = 92, plus 7 spaces = 99 chars
-            timing_columns_width = 99
+
+            # Calculate timing columns width based on selected categories
+            timing_columns_width = sum(category_widths[cat] for cat in self.categories) + len(self.categories)
             # Reserve at least 20 chars for function names, but use more if terminal is wide
             self.max_function_width = max(20, terminal_width - timing_columns_width)
 
-            # Print header
-            header = f"{'Function':<{self.max_function_width}} {'Runs':>8} {'Total(ms)':>12} {'Min(ms)':>12} {'P1(ms)':>12} {'Median(ms)':>12} {'P99(ms)':>12} {'Max(ms)':>12} {'Avg(ms)':>12}"
+            # Build header dynamically
+            header = f"{'Function':<{self.max_function_width}}"
+            for cat in self.categories:
+                width = category_widths[cat]
+                header += f" {category_names[cat]:>{width}}"
+
             print("\033[1m" + "-" * len(header) + "\033[0m")  # Bold line for separator
             print(header)
             print("-" * len(header))
 
         for idx, (text, data) in enumerate(sorted(node.items(), key=lambda item: statistics.median(item[1]['timings']) if item[1]['timings'] else 0, reverse=True)):
-            
+
             current_path = path + [text]
             timings = data['timings']
             count = len(timings)
-            
+
             if count > 0:
                 total_time = sum(timings) * 1000
                 average_time = total_time / count
@@ -138,15 +169,56 @@ class Timer:
                     # Leave room for "..." at the end
                     full_name = full_name[:self.max_function_width - 3] + "..."
 
-                print(f"{full_name:<{self.max_function_width}} "
-                    f"\033[93m{count:>8d}\033[0m "
-                    f"\033[92m{total_time:>12.1f}\033[0m "
-                    f"\033[95m{min_time:>12.1f}\033[0m "
-                    f"\033[35m{p1_time:>12.1f}\033[0m "
-                    f"\033[96m{median_time:>12.1f}\033[0m "
-                    f"\033[35m{p99_time:>12.1f}\033[0m "
-                    f"\033[91m{max_time:>12.1f}\033[0m "
-                    f"\033[94m{average_time:>12.1f}\033[0m")
+                # Build data values dict
+                data_values = {
+                    'runs': count,
+                    'total': total_time,
+                    'min': min_time,
+                    'p1': p1_time,
+                    'median': median_time,
+                    'p99': p99_time,
+                    'max': max_time,
+                    'avg': average_time
+                }
+
+                # Color codes for each category
+                category_colors = {
+                    'runs': '\033[93m',      # Yellow
+                    'total': '\033[92m',     # Green
+                    'min': '\033[95m',       # Magenta
+                    'p1': '\033[35m',        # Purple
+                    'median': '\033[96m',    # Cyan
+                    'p99': '\033[35m',       # Purple
+                    'max': '\033[91m',       # Red
+                    'avg': '\033[94m'        # Blue
+                }
+
+                # Category widths
+                category_widths = {
+                    'runs': 8,
+                    'total': 12,
+                    'min': 12,
+                    'p1': 12,
+                    'median': 12,
+                    'p99': 12,
+                    'max': 12,
+                    'avg': 12
+                }
+
+                # Build output string dynamically
+                output = f"{full_name:<{self.max_function_width}}"
+                for cat in self.categories:
+                    color = category_colors[cat]
+                    width = category_widths[cat]
+                    value = data_values[cat]
+
+                    # Format based on category type
+                    if cat == 'runs':
+                        output += f" {color}{value:>{width}d}\033[0m"
+                    else:
+                        output += f" {color}{value:>{width}.1f}\033[0m"
+
+                print(output)
             if data['children']:
                 self.print_metrics(data['children'], depth + 1, current_path)
 
