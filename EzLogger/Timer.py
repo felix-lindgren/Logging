@@ -8,11 +8,6 @@ import statistics
 import threading
 from threading import local
 
-try:
-    import torch
-except ImportError:
-    pass
-
 class Timer:
     _instance = None
     
@@ -46,6 +41,7 @@ class Timer:
             yield
         else:
             if gpu:
+                import torch
                 torch.cuda.synchronize()
             start = time.perf_counter()
             yield
@@ -109,7 +105,7 @@ class Timer:
                 if count >= 2:
                     try:
                         percentiles = statistics.quantiles(timings, n=100)
-                        p1_time = percentiles[0] * 1000  # 1st percentile
+                        p1_time = percentiles[1] * 1000  # 1st percentile
                         p99_time = percentiles[98] * 1000  # 99th percentile
                     except statistics.StatisticsError:
                         p1_time = min_time
